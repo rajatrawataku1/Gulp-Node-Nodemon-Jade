@@ -4,81 +4,156 @@ var autoprefix = require('gulp-autoprefixer');
 var minifyCSS = require('gulp-minify-css');
 var concat = require('gulp-concat');
 var imagemin = require('gulp-imagemin');
-var browserSync = require('browser-sync').create();
+var browserSync = require('browser-sync');
 var uglify = require('gulp-uglify');
 var rename = require('gulp-rename');
 var iconfont = require('gulp-iconfont');
 var runTimestamp = Math.round(Date.now()/1000);
+var nodemon = require('gulp-nodemon');
+var jsonminify = require('gulp-jsonminify');
+var pump=require('pump');
+const jshint = require('gulp-jshint');
+var uglifyEsJs = require('gulp-uglify-es').default;
+var reload = browserSync.reload;
 
+var DEST='app/public/'
+var DEST_SERVER='app/server/'
 
-// minify the images
+// minifying the images
 gulp.task('imagemin', function() {
-   var img_src = 'innerve_2k17_website/img/**/*';
-   var img_dest = 'build/img/';
+   var img_src = 'ico/app/public/images/**/*';
+   var img_dest = DEST+'images/';
    gulp.src(img_src)
    .pipe(changed(img_dest))
    .pipe(imagemin())
    .pipe(gulp.dest(img_dest))
    .pipe(browserSync.stream());
-
 });
 
-// minnify the styles
+// minify the styles
 gulp.task('styles', function() {
-   gulp.src(['innerve_2k17_website/css/*.css'])
+   gulp.src(['ico/app/public/css/*.css'])
+   .pipe(changed(DEST))
    .pipe(concat('styles.css'))
    .pipe(autoprefix('last 2 versions'))
    .pipe(minifyCSS())
-   .pipe(gulp.dest('build/styles/'))
+   .pipe(gulp.dest(DEST+'css/'))
    .pipe(browserSync.stream());
 });
 
-// minify the js files
-gulp.task('scripts', function() {
+// minfy the js controller file
+gulp.task('scriptController', function() {
     return gulp.src([
-        'innerve_2k17_website/js/*.js',
+        'ico/app/public/js/controllers/*.js',
       ])
+      .pipe(changed(DEST))
       .pipe(concat('custom.js'))
-      .pipe(gulp.dest('build/js/'))
+      .pipe(gulp.dest(DEST+'js/controllers/'))
       .pipe(rename({suffix: '.min'}))
       .pipe(uglify())
-      .pipe(gulp.dest('build/js/'))
+      .pipe(gulp.dest(DEST+'js/controllers/'))
+      .pipe(browserSync.stream());
+});
+
+// form validators js
+gulp.task('scriptFormValid', function() {
+    return gulp.src([
+        'ico/app/public/js/form-validators/*.js',
+      ])
+      .pipe(changed(DEST))
+      .pipe(concat('custom.js'))
+      .pipe(gulp.dest(DEST+'js/form-validators/'))
+      .pipe(rename({suffix: '.min'}))
+      .pipe(uglify())
+      .pipe(gulp.dest(DEST+'js/form-validators/'))
+      .pipe(browserSync.stream());
+});
+
+// views minify data
+gulp.task('scriptViews', function() {
+    return gulp.src([
+        'ico/app/public/js/views/*.js',
+      ])
+      .pipe(changed(DEST))
+      .pipe(concat('custom.js'))
+      .pipe(gulp.dest(DEST+'js/views/'))
+      .pipe(rename({suffix: '.min'}))
+      .pipe(uglify())
+      .pipe(gulp.dest(DEST+'js/views/'))
       .pipe(browserSync.stream());
 });
 
 // for browser reloading thing
-gulp.task('browserSync', function() {
-   browserSync.init({
-      server: {
-         baseDir: './'
-      },
-      startPath: './innerve_2k17_website/index.html'
-   })
-})
+gulp.task('browser-sync',['nodemon'],function() {
+  browserSync({
+    proxy: "localhost:3000",  // local node app address
+    port: 5000,  // use *different* port than above
+    notify: true
+  });
+});
+
+gulp.task('nodemon', function (cb) {
+  var called = false;
+  return nodemon({
+    script: 'ico/app.js',
+    ignore: [
+      'gulpfile.js',
+      'node_modules/'
+    ]
+  })
+  .on('start', function () {
+    if (!called) {
+      called = true;
+      cb();
+    }
+  })
+  .on('restart', function () {
+    setTimeout(function () {
+      reload({ stream: false });
+    }, 1000);
+  });
+});
+
+// configuration files
+gulp.task('minifyJson',function (){
+    return gulp.src(['ico/config/*.json'])
+        .pipe(changed(DEST))
+        .pipe(jsonminify())
+        .pipe(gulp.dest('config/'));
+});
 
 
-// since fonts are already optimized so we dont require it we directly copy it in destination folder
-gulp.task('fonts', function() {
-  return gulp.src('innerve_2k17_website/fonts/**/*')
-  .pipe(gulp.dest('build/fonts'))
-})
+// server files
+gulp.task('serverModules',function(){
+  return gulp.src([
+      'ico/app/server/modules/*.js',
+    ])
+    .pipe(concat('custom.js'))
+    .pipe(gulp.dest('app/server/modules/'))
+    .pipe(rename({suffix: '.min'}))
+    .pipe(uglifyEsJs())
+    .pipe(gulp.dest(DEST+'app/server/modules/'))
+    .pipe(browserSync.stream());
+});
 
-// task to delete the build folder
-gulp.task('clean:build', function() {
-  return del.sync('build');
-})
+//debugging things
+gulp.task('uglify-error-debugging', function (cb) {
+  pump([
+    gulp.src('ico/app/server/modules/*.js'),
+    uglifyEsJs(),
+    gulp.dest('./app/server/modules/')
+  ], cb);
+});
 
-// to clear cache we need can call this function
-gulp.task('cache:clear', function (callback) {
-return cache.clearAll(callback)
-})
 
-
-// default task to run multiple tasks in combination if the task name is default then only writing gulp will
-// make run this task and will save some of the keys
-gulp.task('default', ['browserSync','imagemin', 'styles','scripts','fonts'], function() {
-   gulp.watch('innerve_2k17_website/css/*.css',['styles']);
-   gulp.watch('innerve_2k17_website/img/**/*',['imagemin']);
-   gulp.watch('innerve_2k17_website/js/*.js',['scripts']);
-   gulp.watch('innerve_2k17_website/*.html', browserSync.reload);
+// default task
+gulp.task('default',['browser-sync','serverModules','imagemin', 'styles','scriptViews','scriptFormValid','scriptController'], function(){
+   gulp.watch('ico/app/public/css/*.css',['styles']);
+   gulp.watch('ico/app/public/images/**/*',['imagemin']);
+   gulp.watch('ico/app/public/js/controllers/*.js',['scriptController']);
+   gulp.watch('ico/app/public/js/form-validators/*.js',['scriptFormValid']);
+   gulp.watch('ico/app/public/js/views/*.js',['scriptViews']);
+   gulp.watch('ico/app/config/*.json',['minifyJson']);
+   gulp.watch('ico/app/server/*.js',['serverModules']);
+   gulp.watch('ico/app/server/views/*.jade',reload);
 });
