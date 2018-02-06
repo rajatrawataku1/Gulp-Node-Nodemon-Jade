@@ -84,7 +84,7 @@ gulp.task('scriptViews', function() {
 });
 
 // for browser reloading thing
-gulp.task('browser-sync',['nodemon'],function() {
+gulp.task('browser-sync',function() {
   browserSync({
     proxy: "localhost:3000",  // local node app address
     port: 5000,  // use *different* port than above
@@ -111,11 +111,15 @@ gulp.task('nodemon', function (cb) {
     setTimeout(function () {
       reload({ stream: false });
     }, 1000);
+  })
+  .on('SIGINT', () => {
+      console.log('SIGINT');
+      process.exit(0);
   });
 });
 
 // configuration files
-gulp.task('minifyJson',function (){
+gulp.task('minifyJson',function () {
     return gulp.src(['ico/config/*.json'])
         .pipe(changed(DEST))
         .pipe(jsonminify())
@@ -124,10 +128,11 @@ gulp.task('minifyJson',function (){
 
 
 // server files
-gulp.task('serverModules',function(){
+gulp.task('serverModules',function() {
   return gulp.src([
       'ico/app/server/modules/*.js',
     ])
+    .pipe(changed(DEST))
     .pipe(concat('custom.js'))
     .pipe(gulp.dest('app/server/modules/'))
     .pipe(rename({suffix: '.min'}))
@@ -147,7 +152,7 @@ gulp.task('uglify-error-debugging', function (cb) {
 
 
 // default task
-gulp.task('default',['browser-sync','serverModules','imagemin', 'styles','scriptViews','scriptFormValid','scriptController'], function(){
+gulp.task('default',['nodemon','browser-sync','serverModules','imagemin', 'styles','scriptViews','scriptFormValid','scriptController'], function(){
    gulp.watch('ico/app/public/css/*.css',['styles']);
    gulp.watch('ico/app/public/images/**/*',['imagemin']);
    gulp.watch('ico/app/public/js/controllers/*.js',['scriptController']);
